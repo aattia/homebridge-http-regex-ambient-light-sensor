@@ -43,7 +43,7 @@ module.exports = function (homebridge) {
 
     api = homebridge;
     
-    homebridge.registerAccessory("homebridge-http-regex-ambient-light-sensor", "HttpAmbientLightSensor", HttpAmbientLightSensor);
+    homebridge.registerAccessory("HTTP-AMBIENT-LIGHT", HttpAmbientLightSensor);
 };
 
 
