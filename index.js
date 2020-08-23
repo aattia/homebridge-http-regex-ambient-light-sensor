@@ -1,6 +1,19 @@
+// ISC License
+// Original work Copyright (c) 2017, Andreas Bauer
+// Modified work Copyright 2018, Sander van Woensel
+// Modified work Copyright 2020, Albert Attia
+
 "use strict";
 
+// -----------------------------------------------------------------------------
+// Module variables
+// -----------------------------------------------------------------------------
 let Service, Characteristic, api;
+
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
+
 
 const _http_base = require("homebridge-http-base");
 const http = _http_base.http;
@@ -11,26 +24,40 @@ const MQTTClient = _http_base.MQTTClient;
 const Cache = _http_base.Cache;
 const utils = _http_base.utils;
 
-const packageJSON = require("./package.json");
+const PACKAGE_JSON = require('./package.json');
+const MANUFACTURER = PACKAGE_JSON.author.name;
+const SERIAL_NUMBER = '001';
+const MODEL = PACKAGE_JSON.name;
+const FIRMWARE_REVISION = PACKAGE_JSON.version;
+
+const MIN_LUX_VALUE = 0.0;
+const MAX_LUX_VALUE =  Math.pow(2, 16) - 1.0; // Default BH1750 max 16bit lux value.
+
+// -----------------------------------------------------------------------------
+// Exports
+// -----------------------------------------------------------------------------
 
 module.exports = function (homebridge) {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
 
     api = homebridge;
-
-    homebridge.registerAccessory("homebridge-http-temperature-sensor", "HTTP-TEMPERATURE", HTTP_TEMPERATURE);
+    
+    homebridge.registerAccessory(MODEL, "HttpAmbientLightSensor", HttpAmbientLightSensor);
 };
 
-const TemperatureUnit = Object.freeze({
-   Celsius: "celsius",
-   Fahrenheit: "fahrenheit"
-});
 
-function HTTP_TEMPERATURE(log, config) {
+
+// -----------------------------------------------------------------------------
+// Module public functions
+// -----------------------------------------------------------------------------
+
+function HttpAmbientLightSensor(log, config) {
     this.log = log;
     this.name = config.name;
     this.debug = config.debug || false;
+    this.minSensorValue = config.minValue || MIN_LUX_VALUE;
+    this.maxSensorValue = config.maxValue || MAX_LUX_VALUE;
 
     if (config.getUrl) {
         try {
@@ -45,12 +72,6 @@ function HTTP_TEMPERATURE(log, config) {
         this.log.warn("Property 'getUrl' is required!");
         this.log.warn("Aborting...");
         return;
-    }
-
-    this.unit = utils.enumValueOf(TemperatureUnit, config.unit, TemperatureUnit.Celsius);
-    if (!this.unit) {
-        this.unit = TemperatureUnit.Celsius;
-        this.log.warn(`${config.unit} is an unsupported temperature unit! Using default!`);
     }
 
     this.statusCache = new Cache(config.statusCache, 0);
@@ -69,18 +90,18 @@ function HTTP_TEMPERATURE(log, config) {
             this.log.warn("Property 'patternGroupToExtract' must be a number! Using default value!");
     }
 
-    this.homebridgeService = new Service.TemperatureSensor(this.name);
-    this.homebridgeService.getCharacteristic(Characteristic.CurrentTemperature)
+    this.homebridgeService = new Service.LightSensor(this.name);
+    this.homebridgeService.getCharacteristic(Characteristic.CurrentAmbientLightLevel)
         .setProps({
-                    minValue: -100,
-                    maxValue: 100
+                    minValue: this.minSensorValue,
+                    maxValue: this.maxSensorValue
                 })
-        .on("get", this.getTemperature.bind(this));
+        .on("get", this.getSensorValue.bind(this));
 
     /** @namespace config.pullInterval */
     if (config.pullInterval) {
-        this.pullTimer = new PullTimer(log, config.pullInterval, this.getTemperature.bind(this), value => {
-            this.homebridgeService.setCharacteristic(Characteristic.CurrentTemperature, value);
+        this.pullTimer = new PullTimer(log, config.pullInterval, this.getSensorValue.bind(this), value => {
+            this.homebridgeService.setCharacteristic(Characteristic.CurrentAmbientLightLevel, value);
         });
         this.pullTimer.start();
     }
@@ -110,7 +131,7 @@ function HTTP_TEMPERATURE(log, config) {
     }
 }
 
-HTTP_TEMPERATURE.prototype = {
+HttpAmbientLightSensor.prototype = {
 
     identify: function (callback) {
         this.log("Identify requested!");
@@ -124,10 +145,10 @@ HTTP_TEMPERATURE.prototype = {
         const informationService = new Service.AccessoryInformation();
 
         informationService
-            .setCharacteristic(Characteristic.Manufacturer, "Andreas Bauer")
-            .setCharacteristic(Characteristic.Model, "HTTP Temperature Sensor")
-            .setCharacteristic(Characteristic.SerialNumber, "TS01")
-            .setCharacteristic(Characteristic.FirmwareRevision, packageJSON.version);
+            .setCharacteristic(Characteristic.Manufacturer, MANUFACTURER)
+            .setCharacteristic(Characteristic.Model, MODEL)
+            .setCharacteristic(Characteristic.SerialNumber, SERIAL_NUMBER)
+            .setCharacteristic(Characteristic.FirmwareRevision, FIRMWARE_REVISION);
 
         return [informationService, this.homebridgeService];
     },
@@ -140,19 +161,19 @@ HTTP_TEMPERATURE.prototype = {
         }
 
         let value = body.value;
-        if (body.characteristic === "CurrentTemperature" && this.unit === TemperatureUnit.Fahrenheit)
-            value = (value - 32) / 1.8;
+        if (body.characteristic === "CurrentAmbientLightLevel")
+            value = value;
 
         if (this.debug)
             this.log("Updating '" + body.characteristic + "' to new value: " + body.value);
         characteristic.updateValue(value);
     },
 
-    getTemperature: function (callback) {
+    getSensorValue: function (callback) {
         if (!this.statusCache.shouldQuery()) {
-            const value = this.homebridgeService.getCharacteristic(Characteristic.CurrentTemperature).value;
+            const value = this.homebridgeService.getCharacteristic(Characteristic.CurrentAmbientLightLevel).value;
             if (this.debug)
-                this.log(`getTemperature() returning cached value ${value}${this.statusCache.isInfinite()? " (infinite cache)": ""}`);
+                this.log(`getSensorValue() returning cached value ${value}${this.statusCache.isInfinite()? " (infinite cache)": ""}`);
 
             callback(null, value);
             return;
@@ -163,31 +184,30 @@ HTTP_TEMPERATURE.prototype = {
                 this.pullTimer.resetTimer();
 
             if (error) {
-                this.log("getTemperature() failed: %s", error.message);
+                this.log("getSensorValue() failed: %s", error.message);
                 callback(error);
             }
             else if (!http.isHttpSuccessCode(response.statusCode)) {
-                this.log("getTemperature() returned http error: %s", response.statusCode);
+                this.log("getSensorValue() returned http error: %s", response.statusCode);
                 callback(new Error("Got http error code " + response.statusCode));
             }
             else {
-                let temperature;
+                let sensorValue;
                 try {
-                    temperature = utils.extractValueFromPattern(this.statusPattern, body, this.patternGroupToExtract);
+                    sensorValue = utils.extractValueFromPattern(this.statusPattern, body, this.patternGroupToExtract);
                 } catch (error) {
-                    this.log("getTemperature() error occurred while extracting temperature from body: " + error.message);
+                    this.log("getSensorValue() error occurred while extracting sensor value from body: " + error.message);
                     callback(new Error("pattern error"));
                     return;
                 }
 
-                if (this.unit === TemperatureUnit.Fahrenheit)
-                    temperature = (temperature - 32) / 1.8;
+                
 
                 if (this.debug)
-                    this.log("Temperature is currently at %s", temperature);
+                    this.log("Sensor Value is currently at %s", sensorValue);
 
                 this.statusCache.queried();
-                callback(null, temperature);
+                callback(null, sensorValue);
             }
         });
     },
