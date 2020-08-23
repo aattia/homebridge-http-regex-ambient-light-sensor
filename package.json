@@ -1,7 +1,7 @@
 {
-  "name": "homebridge-http-temperature-sensor",
+  "name": "homebridge-http-regex-ambient-light-sensor",
   "version": "1.0.9",
-  "description": "Http temperature sensor for Homebridge",
+  "description": "Http regex ambient light sensor for Homebridge",
   "license": "ISC",
   "keywords": [
     "homebridge-plugin"
@@ -11,10 +11,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Supereg/homebridge-http-temperature-sensor"
+    "url": "https://github.com/aattia/homebridge-http-regex-ambient-light-sensor"
   },
   "bugs": {
-    "url": "https://github.com/Supereg/homebridge-http-temperature-sensor/issues"
+    "url": "https://github.com/aattia/homebridge-http-regex-ambient-light-sensor/issues"
   },
   "engines": {
     "node": ">=10.17.0",
