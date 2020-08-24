@@ -20,6 +20,18 @@
     "node": ">=10.17.0",
     "homebridge": ">=0.4.0"
   },
+  "author": {
+    "name": "Albert Attia",
+    "email": "albert.attia@gmail.com"
+  },
+  "contributors": [
+    {
+      "name": "Andreas Bauer (Supereg)"
+    },
+     {
+      "name": "Sander van Woensel"
+    }
+  ],
   "dependencies": {
     "homebridge-http-base": "~2.1.8"
   },
