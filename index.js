@@ -78,7 +78,6 @@ function HttpAmbientLightSensor(log, config) {
         }
     }
     
-    this.statusCache = new Cache(config.statusCache, 0);
     this.statusPattern = /(-?[0-9]{1,3}(\.[0-9])?)/;
     try {
         if (config.statusPattern)
@@ -187,8 +186,8 @@ HttpAmbientLightSensor.prototype = {
                 callback(new Error("Got http error code " + response.statusCode));
             }
             else {
-                //const sensorValue = utils.extractValueFromPattern(this.statusPattern, body, this.patternGroupToExtract);
-                const sensorValue = parseFloat("234.54");
+                const sensorValue = parseFloat(utils.extractValueFromPattern(this.statusPattern, body, this.patternGroupToExtract));
+                //const sensorValue = parseFloat("234.54");
                 if (this.debug)
                     this.log("Sensor value is currently at %s", sensorValue);
 
