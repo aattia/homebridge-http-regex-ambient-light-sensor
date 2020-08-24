@@ -14,22 +14,16 @@ let Service, Characteristic, api;
 // Constants
 // -----------------------------------------------------------------------------
 
-
-const _http_base = require("homebridge-http-base");
-const http = _http_base.http;
-const configParser = _http_base.configParser;
-const PullTimer = _http_base.PullTimer;
-const notifications = _http_base.notifications;
-const MQTTClient = _http_base.MQTTClient;
-const Cache = _http_base.Cache;
-const utils = _http_base.utils;
+const configParser = require("homebridge-http-base").configParser;
+const http = require("homebridge-http-base").http;
+const notifications = require("homebridge-http-base").notifications;
+const PullTimer = require("homebridge-http-base").PullTimer;
 
 const PACKAGE_JSON = require('./package.json');
 const MANUFACTURER = PACKAGE_JSON.author.name;
 const SERIAL_NUMBER = '001';
 const MODEL = PACKAGE_JSON.name;
 const FIRMWARE_REVISION = PACKAGE_JSON.version;
-
 
 const MIN_LUX_VALUE = 0.0;
 const MAX_LUX_VALUE =  Math.pow(2, 16) - 1.0; // Default BH1750 max 16bit lux value.
@@ -43,11 +37,9 @@ module.exports = function (homebridge) {
     Characteristic = homebridge.hap.Characteristic;
 
     api = homebridge;
-    
-    homebridge.registerAccessory(MODEL,"HTTP-AMBIENT-LIGHT", HttpAmbientLightSensor);
+
+    homebridge.registerAccessory(MODEL, "HttpAmbientLightSensor", HttpAmbientLightSensor);
 };
-
-
 
 // -----------------------------------------------------------------------------
 // Module public functions
@@ -75,20 +67,15 @@ function HttpAmbientLightSensor(log, config) {
         return;
     }
 
-    this.statusCache = new Cache(config.statusCache, 0);
-    this.statusPattern = /(-?[0-9]{1,3}(\.[0-9])?)/;
-    try {
-        if (config.statusPattern)
-            this.statusPattern = configParser.parsePattern(config.statusPattern);
-    } catch (error) {
-        this.log.warn("Property 'statusPattern' was given in an unsupported type. Using default one!");
-    }
-    this.patternGroupToExtract = 1;
-    if (config.patternGroupToExtract) {
-        if (typeof config.patternGroupToExtract === "number")
-            this.patternGroupToExtract = config.patternGroupToExtract;
-        else
-            this.log.warn("Property 'patternGroupToExtract' must be a number! Using default value!");
+
+    if(config.identifyUrl) {
+        try {
+            this.identifyUrl = configParser.parseUrlProperty(config.identifyUrl);
+        } catch (error) {
+            this.log.warn("Error occurred while parsing 'identifyUrl': " + error.message);
+            this.log.warn("Aborting...");
+            return;
+        }
     }
 
     this.homebridgeService = new Service.LightSensor(this.name);
@@ -110,31 +97,11 @@ function HttpAmbientLightSensor(log, config) {
     /** @namespace config.notificationPassword */
     /** @namespace config.notificationID */
     notifications.enqueueNotificationRegistrationIfDefined(api, log, config.notificationID, config.notificationPassword, this.handleNotification.bind(this));
-
-    /** @namespace config.mqtt */
-    if (config.mqtt) {
-        let options;
-        try {
-            options = configParser.parseMQTTOptions(config.mqtt);
-        } catch (error) {
-            this.log.error("Error occurred while parsing MQTT property: " + error.message);
-            this.log.error("MQTT will not be enabled!");
-        }
-
-        if (options) {
-            try {
-                this.mqttClient = new MQTTClient(this.homebridgeService, options, this.log);
-                this.mqttClient.connect();
-            } catch (error) {
-                this.log.error("Error occurred creating MQTT client: " + error.message);
-            }
-        }
-    }
 }
 
 HttpAmbientLightSensor.prototype = {
 
-     identify: function (callback) {
+    identify: function (callback) {
       this.log("Identify requested!");
 
       if (this.identifyUrl) {
@@ -160,9 +127,6 @@ HttpAmbientLightSensor.prototype = {
     },
 
     getServices: function () {
-        if (!this.homebridgeService)
-            return [];
-
         const informationService = new Service.AccessoryInformation();
 
         informationService
@@ -175,7 +139,7 @@ HttpAmbientLightSensor.prototype = {
     },
 
     handleNotification: function(body) {
-         const value = body.value;
+        const value = body.value;
 
         /** @namespace body.characteristic */
         let characteristic;
@@ -194,15 +158,6 @@ HttpAmbientLightSensor.prototype = {
     },
 
     getSensorValue: function (callback) {
-        if (!this.statusCache.shouldQuery()) {
-            const value = this.homebridgeService.getCharacteristic(Characteristic.CurrentAmbientLightLevel).value;
-            if (this.debug)
-                this.log(`getSensorValue() returning cached value ${value}${this.statusCache.isInfinite()? " (infinite cache)": ""}`);
-
-            callback(null, value);
-            return;
-        }
-
         http.httpRequest(this.getUrl, (error, response, body) => {
             if (this.pullTimer)
                 this.pullTimer.resetTimer();
@@ -211,26 +166,15 @@ HttpAmbientLightSensor.prototype = {
                 this.log("getSensorValue() failed: %s", error.message);
                 callback(error);
             }
-            else if (!http.isHttpSuccessCode(response.statusCode)) {
+            else if (response.statusCode !== 200) {
                 this.log("getSensorValue() returned http error: %s", response.statusCode);
                 callback(new Error("Got http error code " + response.statusCode));
             }
             else {
-                let sensorValue;
-                try {
-                    sensorValue = utils.extractValueFromPattern(this.statusPattern, body, this.patternGroupToExtract);
-                } catch (error) {
-                    this.log("getSensorValue() error occurred while extracting sensor value from body: " + error.message);
-                    callback(new Error("pattern error"));
-                    return;
-                }
-
-                
-
+                const sensorValue = parseFloat(body);
                 if (this.debug)
-                    this.log("Sensor Value is currently at %s", sensorValue);
+                    this.log("Sensor value is currently at %s", sensorValue);
 
-                this.statusCache.queried();
                 callback(null, sensorValue);
             }
         });
