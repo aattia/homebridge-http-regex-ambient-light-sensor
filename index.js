@@ -175,19 +175,22 @@ HttpAmbientLightSensor.prototype = {
     },
 
     handleNotification: function(body) {
-        const characteristic = utils.getCharacteristic(this.homebridgeService, body.characteristic);
-        if (!characteristic) {
-            this.log("Encountered unknown characteristic when handling notification (or characteristic which wasn't added to the service): " + body.characteristic);
-            return;
-        }
+         const value = body.value;
 
-        let value = body.value;
-        if (body.characteristic === "CurrentAmbientLightLevel")
-            value = value;
+        /** @namespace body.characteristic */
+        let characteristic;
+        switch (body.characteristic) {
+            case "CurrentAmbientLightLevel":
+                characteristic = Characteristic.CurrentAmbientLightLevel;
+                break;
+            default:
+                this.log("Encountered unknown characteristic handling notification: " + body.characteristic);
+                return;
+        }
 
         if (this.debug)
             this.log("Updating '" + body.characteristic + "' to new value: " + body.value);
-        characteristic.updateValue(value);
+        this.homebridgeService.setCharacteristic(characteristic, value);
     },
 
     getSensorValue: function (callback) {
