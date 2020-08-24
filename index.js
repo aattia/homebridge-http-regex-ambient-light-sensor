@@ -77,6 +77,22 @@ function HttpAmbientLightSensor(log, config) {
             return;
         }
     }
+    
+    this.statusCache = new Cache(config.statusCache, 0);
+    this.statusPattern = /(-?[0-9]{1,3}(\.[0-9])?)/;
+    try {
+        if (config.statusPattern)
+            this.statusPattern = configParser.parsePattern(config.statusPattern);
+    } catch (error) {
+        this.log.warn("Property 'statusPattern' was given in an unsupported type. Using default one!");
+    }
+    this.patternGroupToExtract = 1;
+    if (config.patternGroupToExtract) {
+        if (typeof config.patternGroupToExtract === "number")
+            this.patternGroupToExtract = config.patternGroupToExtract;
+        else
+            this.log.warn("Property 'patternGroupToExtract' must be a number! Using default value!");
+    }
 
     this.homebridgeService = new Service.LightSensor(this.name);
     this.homebridgeService.getCharacteristic(Characteristic.CurrentAmbientLightLevel)
