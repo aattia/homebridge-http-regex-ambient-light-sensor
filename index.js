@@ -25,6 +25,11 @@ const Cache = _http_base.Cache;
 const utils = _http_base.utils;
 
 const PACKAGE_JSON = require('./package.json');
+const MANUFACTURER = PACKAGE_JSON.author.name;
+const SERIAL_NUMBER = '001';
+const MODEL = PACKAGE_JSON.name;
+const FIRMWARE_REVISION = PACKAGE_JSON.version;
+
 
 const MIN_LUX_VALUE = 0.0;
 const MAX_LUX_VALUE =  Math.pow(2, 16) - 1.0; // Default BH1750 max 16bit lux value.
