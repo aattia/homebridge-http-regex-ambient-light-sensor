@@ -18,6 +18,8 @@ const configParser = require("homebridge-http-base").configParser;
 const http = require("homebridge-http-base").http;
 const notifications = require("homebridge-http-base").notifications;
 const PullTimer = require("homebridge-http-base").PullTimer;
+const _http_base = require("homebridge-http-base");
+const utils = _http_base.utils;
 
 const PACKAGE_JSON = require('./package.json');
 const MANUFACTURER = PACKAGE_JSON.author.name;
