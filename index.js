@@ -187,7 +187,7 @@ HttpAmbientLightSensor.prototype = {
                 callback(new Error("Got http error code " + response.statusCode));
             }
             else {
-                const sensorValue = parseFloat(body);
+                const sensorValue = utils.extractValueFromPattern(this.statusPattern, body, this.patternGroupToExtract);
                 if (this.debug)
                     this.log("Sensor value is currently at %s", sensorValue);
 
